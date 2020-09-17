@@ -60,9 +60,14 @@ static inline void *allocate_probes(int count)
 	return p == NULL ? NULL : p->probes;
 }
 
-static void srcu_free_old_probes(struct rcu_head *head)
+static void rcu_tasks_trace_free_old_probes(struct rcu_head *head)
 {
 	kfree(container_of(head, struct tp_probes, rcu));
+}
+
+static void srcu_free_old_probes(struct rcu_head *head)
+{
+	call_rcu_tasks_trace(head, rcu_tasks_trace_free_old_probes);
 }
 
 static void rcu_free_old_probes(struct rcu_head *head)
@@ -316,6 +321,21 @@ static int tracepoint_remove_func(struct tracepoint *tp,
 	return 0;
 }
 
+static int __tracepoint_probe_register_prio(struct tracepoint *tp, void *probe,
+				   void *data, int prio)
+{
+	struct tracepoint_func tp_func;
+	int ret;
+
+	mutex_lock(&tracepoints_mutex);
+	tp_func.func = probe;
+	tp_func.data = data;
+	tp_func.prio = prio;
+	ret = tracepoint_add_func(tp, &tp_func, prio);
+	mutex_unlock(&tracepoints_mutex);
+	return ret;
+}
+
 /**
  * tracepoint_probe_register_prio -  Connect a probe to a tracepoint with priority
  * @tp: tracepoint
@@ -332,18 +352,24 @@ static int tracepoint_remove_func(struct tracepoint *tp,
 int tracepoint_probe_register_prio(struct tracepoint *tp, void *probe,
 				   void *data, int prio)
 {
-	struct tracepoint_func tp_func;
-	int ret;
+	if (tp->flags & TRACEPOINT_MAYSLEEP) {
+		return -EINVAL;
+	}
 
-	mutex_lock(&tracepoints_mutex);
-	tp_func.func = probe;
-	tp_func.data = data;
-	tp_func.prio = prio;
-	ret = tracepoint_add_func(tp, &tp_func, prio);
-	mutex_unlock(&tracepoints_mutex);
-	return ret;
+	return __tracepoint_probe_register_prio(tp, probe, data, prio);
 }
 EXPORT_SYMBOL_GPL(tracepoint_probe_register_prio);
+
+int tracepoint_probe_register_prio_maysleep(struct tracepoint *tp, void *probe,
+				   void *data, int prio)
+{
+	if (!(tp->flags & TRACEPOINT_MAYSLEEP)) {
+		return -EINVAL;
+	}
+
+	return __tracepoint_probe_register_prio(tp, probe, data, prio);
+}
+EXPORT_SYMBOL_GPL(tracepoint_probe_register_prio_maysleep);
 
 /**
  * tracepoint_probe_register -  Connect a probe to a tracepoint
@@ -362,6 +388,12 @@ int tracepoint_probe_register(struct tracepoint *tp, void *probe, void *data)
 	return tracepoint_probe_register_prio(tp, probe, data, TRACEPOINT_DEFAULT_PRIO);
 }
 EXPORT_SYMBOL_GPL(tracepoint_probe_register);
+
+int tracepoint_probe_register_maysleep(struct tracepoint *tp, void *probe, void *data)
+{
+	return tracepoint_probe_register_prio_maysleep(tp, probe, data, TRACEPOINT_DEFAULT_PRIO);
+}
+EXPORT_SYMBOL_GPL(tracepoint_probe_register_maysleep);
 
 /**
  * tracepoint_probe_unregister -  Disconnect a probe from a tracepoint

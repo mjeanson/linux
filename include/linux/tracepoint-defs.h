@@ -29,6 +29,14 @@ struct tracepoint_func {
 	int prio;
 };
 
+/*
+ * Tracepoint flags:
+ *  MAYSLEEP - The tracepoint can sleep / be preempted
+ */
+enum tracepoint_flags {
+	TRACEPOINT_MAYSLEEP = (1 << 0),
+};
+
 struct tracepoint {
 	const char *name;		/* Tracepoint name */
 	struct static_key key;
@@ -38,6 +46,7 @@ struct tracepoint {
 	int (*regfunc)(void);
 	void (*unregfunc)(void);
 	struct tracepoint_func __rcu *funcs;
+	unsigned int flags;
 };
 
 #ifdef CONFIG_HAVE_ARCH_PREL32_RELOCATIONS
