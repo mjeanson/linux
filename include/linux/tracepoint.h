@@ -183,6 +183,10 @@ static inline struct tracepoint *tracepoint_ptr_deref(tracepoint_ptr_t *p)
 		if (!(cond))						\
 			return;						\
 									\
+		/* TODO: For testing only, force maysleep when not rcuidle */ \
+		if (!(rcuidle))						\
+			maysleep = true;				\
+									\
 		/* srcu can't be used from NMI */			\
 		WARN_ON_ONCE(rcuidle && in_nmi());			\
 									\
@@ -211,7 +215,11 @@ static inline struct tracepoint *tracepoint_ptr_deref(tracepoint_ptr_t *p)
 									\
 		if (it_func_ptr) {					\
 			__data = (it_func_ptr)->data;			\
+			/* TODO: Remove, only fo testing */		\
+			preempt_disable_notrace();			\
 			__DO_TRACE_CALL(name)(args);			\
+			/* TODO: Remove, only fo testing */		\
+			preempt_enable_notrace();			\
 		}							\
 									\
 		if (maysleep)						\
