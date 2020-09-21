@@ -2316,7 +2316,11 @@ static int __bpf_probe_register(struct bpf_raw_event_map *btp, struct bpf_prog *
 	if (prog->aux->max_tp_access > btp->writable_size)
 		return -EINVAL;
 
-	return tracepoint_probe_register_may_exist(tp, (void *)btp->bpf_func,
+	if (tp->flags & TRACEPOINT_MAYFAULT)
+		return tracepoint_probe_register_may_exist_mayfault(tp, (void *)btp->bpf_func,
+						   prog);
+	else
+		return tracepoint_probe_register_may_exist(tp, (void *)btp->bpf_func,
 						   prog);
 }
 
