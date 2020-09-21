@@ -45,6 +45,16 @@
 			     PARAMS(print));		       \
 	DEFINE_EVENT(name, name, PARAMS(proto), PARAMS(args));
 
+#undef TRACE_EVENT_MAYFAULT
+#define TRACE_EVENT_MAYFAULT(name, proto, args, tstruct, assign, print)	\
+	DECLARE_EVENT_CLASS_MAYFAULT(name,		       \
+			     PARAMS(proto),		       \
+			     PARAMS(args),		       \
+			     PARAMS(tstruct),		       \
+			     PARAMS(assign),		       \
+			     PARAMS(print));		       \
+	DEFINE_EVENT(name, name, PARAMS(proto), PARAMS(args));
+
 #include "stages/stage1_struct_define.h"
 
 #undef DECLARE_EVENT_CLASS
@@ -56,6 +66,12 @@
 	};								\
 									\
 	static struct trace_event_class event_class_##name;
+
+#undef DECLARE_EVENT_CLASS_MAYFAULT
+#define DECLARE_EVENT_CLASS_MAYFAULT(name, proto, args,			\
+		tstruct, assign, print)					\
+	DECLARE_EVENT_CLASS(name, PARAMS(proto), PARAMS(args),		\
+		PARAMS(tstruct), PARAMS(assign), PARAMS(print))
 
 #undef DEFINE_EVENT
 #define DEFINE_EVENT(template, name, proto, args)	\
@@ -80,7 +96,7 @@
 #undef TRACE_EVENT_FN_MAYFAULT
 #define TRACE_EVENT_FN_MAYFAULT(name, proto, args, tstruct,		\
 		assign, print, reg, unreg)				\
-	TRACE_EVENT(name, PARAMS(proto), PARAMS(args),			\
+	TRACE_EVENT_MAYFAULT(name, PARAMS(proto), PARAMS(args),		\
 		PARAMS(tstruct), PARAMS(assign), PARAMS(print))		\
 
 #undef TRACE_EVENT_FN_COND
@@ -122,6 +138,12 @@
 	struct trace_event_data_offsets_##call {			\
 		tstruct;						\
 	};
+
+#undef DECLARE_EVENT_CLASS_MAYFAULT
+#define DECLARE_EVENT_CLASS_MAYFAULT(call, proto, args,			\
+		tstruct, assign, print)					\
+	DECLARE_EVENT_CLASS(call, PARAMS(proto), PARAMS(args),		\
+		PARAMS(tstruct), PARAMS(assign), PARAMS(print))
 
 #undef DEFINE_EVENT
 #define DEFINE_EVENT(template, name, proto, args)
@@ -214,6 +236,12 @@ static struct trace_event_functions trace_event_type_funcs_##call = {	\
 	.trace			= trace_raw_output_##call,		\
 };
 
+#undef DECLARE_EVENT_CLASS_MAYFAULT
+#define DECLARE_EVENT_CLASS_MAYFAULT(call, proto, args,			\
+		tstruct, assign, print)					\
+	DECLARE_EVENT_CLASS(call, PARAMS(proto), PARAMS(args),		\
+		PARAMS(tstruct), PARAMS(assign), PARAMS(print))
+
 #undef DEFINE_EVENT_PRINT
 #define DEFINE_EVENT_PRINT(template, call, proto, args, print)		\
 static notrace enum print_line_t					\
@@ -250,6 +278,12 @@ static struct trace_event_fields trace_event_fields_##call[] = {	\
 	tstruct								\
 	{} };
 
+#undef DECLARE_EVENT_CLASS_MAYFAULT
+#define DECLARE_EVENT_CLASS_MAYFAULT(call, proto, args,			\
+		tstruct, func, print)					\
+	DECLARE_EVENT_CLASS(call, PARAMS(proto), PARAMS(args),		\
+		PARAMS(tstruct), PARAMS(func), PARAMS(print))
+
 #undef DEFINE_EVENT_PRINT
 #define DEFINE_EVENT_PRINT(template, name, proto, args, print)
 
@@ -270,6 +304,12 @@ static inline notrace int trace_event_get_offsets_##call(		\
 									\
 	return __data_size;						\
 }
+
+#undef DECLARE_EVENT_CLASS_MAYFAULT
+#define DECLARE_EVENT_CLASS_MAYFAULT(call, proto, args,			\
+		tstruct, assign, print)					\
+	DECLARE_EVENT_CLASS(call, PARAMS(proto), PARAMS(args),		\
+		PARAMS(tstruct), PARAMS(assign), PARAMS(print))
 
 #include TRACE_INCLUDE(TRACE_INCLUDE_FILE)
 
@@ -380,8 +420,8 @@ static inline notrace int trace_event_get_offsets_##call(		\
 
 #include "stages/stage6_event_callback.h"
 
-#undef DECLARE_EVENT_CLASS
-#define DECLARE_EVENT_CLASS(call, proto, args, tstruct, assign, print)	\
+#undef _DECLARE_EVENT_CLASS
+#define _DECLARE_EVENT_CLASS(call, proto, args, tstruct, assign, print, tp_flags)	\
 									\
 static notrace void							\
 trace_event_raw_event_##call(void *__data, proto)			\
@@ -392,8 +432,11 @@ trace_event_raw_event_##call(void *__data, proto)			\
 	struct trace_event_raw_##call *entry;				\
 	int __data_size;						\
 									\
+	if ((tp_flags) & TRACEPOINT_MAYFAULT)				\
+		preempt_disable_notrace();				\
+									\
 	if (trace_trigger_soft_disabled(trace_file))			\
-		return;							\
+		goto end;						\
 									\
 	__data_size = trace_event_get_offsets_##call(&__data_offsets, args); \
 									\
@@ -401,14 +444,30 @@ trace_event_raw_event_##call(void *__data, proto)			\
 				 sizeof(*entry) + __data_size);		\
 									\
 	if (!entry)							\
-		return;							\
+		goto end;						\
 									\
 	tstruct								\
 									\
 	{ assign; }							\
 									\
 	trace_event_buffer_commit(&fbuffer);				\
+end:									\
+	if ((tp_flags) & TRACEPOINT_MAYFAULT)				\
+		preempt_enable_notrace();				\
 }
+
+#undef DECLARE_EVENT_CLASS
+#define DECLARE_EVENT_CLASS(call, proto, args, tstruct, assign, print)	\
+	_DECLARE_EVENT_CLASS(call, PARAMS(proto), PARAMS(args),		\
+			PARAMS(tstruct), PARAMS(assign),		\
+			PARAMS(print), 0)
+
+#undef DECLARE_EVENT_CLASS_MAYFAULT
+#define DECLARE_EVENT_CLASS_MAYFAULT(call, proto, args, tstruct, assign, print)	\
+	_DECLARE_EVENT_CLASS(call, PARAMS(proto), PARAMS(args),			\
+			PARAMS(tstruct), PARAMS(assign),			\
+			PARAMS(print), TRACEPOINT_MAYFAULT)
+
 /*
  * The ftrace_test_probe is compiled out, it is only here as a build time check
  * to make sure that if the tracepoint handling changes, the ftrace probe will
@@ -439,6 +498,12 @@ static struct trace_event_class __used __refdata event_class_##call = { \
 	.reg			= trace_event_reg,			\
 	_TRACE_PERF_INIT(call)						\
 };
+
+#undef DECLARE_EVENT_CLASS_MAYFAULT
+#define DECLARE_EVENT_CLASS_MAYFAULT(call, proto, args,			\
+		tstruct, assign, print)					\
+	DECLARE_EVENT_CLASS(call, PARAMS(proto), PARAMS(args),		\
+		PARAMS(tstruct), PARAMS(assign), PARAMS(print))
 
 #undef DEFINE_EVENT
 #define DEFINE_EVENT(template, call, proto, args)			\
