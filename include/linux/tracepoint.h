@@ -342,6 +342,12 @@ static inline struct tracepoint *tracepoint_ptr_deref(tracepoint_ptr_t *p)
 		return -ENOSYS;						\
 	}								\
 	static inline int						\
+	register_trace_prio_##name(void (*probe)(data_proto), void *data,\
+				   int prio)				\
+	{								\
+		return -ENOSYS						\
+	}								\
+	static inline int						\
 	unregister_trace_##name(void (*probe)(data_proto),		\
 				void *data)				\
 	{								\
