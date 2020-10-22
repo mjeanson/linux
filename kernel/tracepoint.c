@@ -25,9 +25,6 @@ enum tp_func_state {
 extern tracepoint_ptr_t __start___tracepoints_ptrs[];
 extern tracepoint_ptr_t __stop___tracepoints_ptrs[];
 
-DEFINE_SRCU(tracepoint_srcu);
-EXPORT_SYMBOL_GPL(tracepoint_srcu);
-
 enum tp_transition_sync {
 	TP_TRANSITION_SYNC_1_0_1,
 	TP_TRANSITION_SYNC_N_2_1,
@@ -116,14 +113,9 @@ static void rcu_tasks_trace_free_old_probes(struct rcu_head *head)
 	kfree(container_of(head, struct tp_probes, rcu));
 }
 
-static void srcu_free_old_probes(struct rcu_head *head)
-{
-	call_rcu_tasks_trace(head, rcu_tasks_trace_free_old_probes);
-}
-
 static void rcu_free_old_probes(struct rcu_head *head)
 {
-	call_srcu(&tracepoint_srcu, head, srcu_free_old_probes);
+	call_rcu_tasks_trace(head, rcu_tasks_trace_free_old_probes);
 }
 
 static __init int release_early_probes(void)
@@ -141,7 +133,7 @@ static __init int release_early_probes(void)
 	return 0;
 }
 
-/* SRCU and Tasks Trace RCU are initialized at core_initcall */
+/* Tasks Trace RCU is initialized at core_initcall */
 postcore_initcall(release_early_probes);
 
 static inline void release_probes(struct tracepoint_func *old)
@@ -151,9 +143,8 @@ static inline void release_probes(struct tracepoint_func *old)
 			struct tp_probes, probes[0]);
 
 		/*
-		 * We can't free probes if SRCU and Tasks Trace RCU are not
-		 * initialized yet. Postpone the freeing till after both are
-		 * initialized.
+		 * We can't free probes if Tasks Trace RCU is not initialized yet.
+		 * Postpone the freeing till after Tasks Trace RCU is initialized.
 		 */
 		if (unlikely(!ok_to_free_tracepoints)) {
 			tp_probes->rcu.next = early_probes;
@@ -162,9 +153,11 @@ static inline void release_probes(struct tracepoint_func *old)
 		}
 
 		/*
-		 * Tracepoint probes are protected by sched RCU, SRCU and
-		 * Tasks Trace RCU by chaining the callbacks we cover all three
-		 * cases and wait for all three grace periods.
+		 * Tracepoint probes are protected by both sched RCU and
+		 * Tasks Trace RCU, by calling the Tasks Trace RCU callback in
+		 * the sched RCU callback we cover both cases. So let us chain
+		 * the Tasks Trace RCU and sched RCU callbacks to wait for both
+		 * grace periods.
 		 */
 		call_rcu(&tp_probes->rcu, rcu_free_old_probes);
 	}
