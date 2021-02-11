@@ -82,8 +82,13 @@ TRACE_MAKE_SYSTEM_STR();
 
 #undef TRACE_EVENT_MAYSLEEP
 #define TRACE_EVENT_MAYSLEEP(name, proto, args, tstruct, assign, print)	\
-	TRACE_EVENT(name, PARAMS(proto), PARAMS(args),			\
-		PARAMS(tstruct), PARAMS(assign), PARAMS(print))
+	DECLARE_EVENT_CLASS_MAYSLEEP(name,		       \
+			     PARAMS(proto),		       \
+			     PARAMS(args),		       \
+			     PARAMS(tstruct),		       \
+			     PARAMS(assign),		       \
+			     PARAMS(print));		       \
+	DEFINE_EVENT(name, name, PARAMS(proto), PARAMS(args));
 
 
 #undef __field
@@ -152,7 +157,7 @@ TRACE_MAKE_SYSTEM_STR();
 #undef TRACE_EVENT_FN_MAYSLEEP
 #define TRACE_EVENT_FN_MAYSLEEP(name, proto, args, tstruct,		\
 		assign, print, reg, unreg)				\
-	TRACE_EVENT(name, PARAMS(proto), PARAMS(args),			\
+	TRACE_EVENT_MAYSLEEP(name, PARAMS(proto), PARAMS(args),		\
 		PARAMS(tstruct), PARAMS(assign), PARAMS(print))		\
 
 #undef TRACE_EVENT_FN_COND
