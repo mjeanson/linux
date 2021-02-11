@@ -187,7 +187,7 @@ static inline struct tracepoint *tracepoint_ptr_deref(tracepoint_ptr_t *p)
 		WARN_ON_ONCE(rcuidle && in_nmi());			\
 									\
 		if (maysleep) {						\
-			might_sleep();					\
+			might_fault();					\
 			rcu_read_lock_trace();				\
 		} else {						\
 			/* keep srcu and sched-rcu usage consistent */	\
