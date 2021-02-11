@@ -178,7 +178,7 @@ static inline struct tracepoint *tracepoint_ptr_deref(tracepoint_ptr_t *p)
 		struct tracepoint_func *it_func_ptr;			\
 		int __maybe_unused __idx = 0;				\
 		void *__data;						\
-		bool maysleep = tp_flags & TRACEPOINT_MAYSLEEP;		\
+		bool maysleep = (tp_flags) & TRACEPOINT_MAYSLEEP;	\
 									\
 		if (!(cond))						\
 			return;						\
