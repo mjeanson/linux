@@ -181,6 +181,23 @@ static inline bool is_kernel_rodata(unsigned long addr)
 }
 
 /**
+ * is_kernel_opd - checks if the pointer address is located in the
+ *                 .opd section
+ *
+ * @addr: address to check
+ *
+ * Returns: true if the address is located in .opd, false otherwise.
+ */
+static inline bool is_kernel_opd(unsigned long addr)
+{
+	if (!IS_ENABLED(CONFIG_HAVE_FUNCTION_DESCRIPTORS))
+		return false;
+
+	return addr >= (unsigned long)__start_opd &&
+	       addr < (unsigned long)__end_opd;
+}
+
+/**
  * is_kernel_inittext - checks if the pointer address is located in the
  *                      .init.text section
  *
